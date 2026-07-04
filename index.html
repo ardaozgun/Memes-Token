@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="dark" />
+<title>Portföy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0b0e17;
+    --surface: #141926;
+    --surface-2: #10141f;
+    --border: #232b3d;
+    --text: #e8ecf4;
+    --muted: #8a93a6;
+    --faint: #5b647a;
+    --accent: #9b7dff;
+    --teal: #2fe0a6;
+    --pos: #2fe0a6;
+    --neg: #ff6b6b;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --disp: "Space Grotesk", system-ui, sans-serif;
+    --body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1100px 500px at 50% -8%, rgba(155,125,255,0.10), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+  }
+
+  /* ---- top bar ---- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+  .eyebrow {
+    font-family: var(--disp);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--faint);
+    font-size: 12px;
+    font-family: var(--mono);
+  }
+  .live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--teal);
+    box-shadow: 0 0 0 0 rgba(47,224,166,0.5);
+    animation: pulse 2.4s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(47,224,166,0.45); }
+    70% { box-shadow: 0 0 0 7px rgba(47,224,166,0); }
+    100% { box-shadow: 0 0 0 0 rgba(47,224,166,0); }
+  }
+  .refresh {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 34px; height: 34px;
+    border-radius: 9px;
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: border-color .15s, color .15s, transform .3s;
+  }
+  .refresh:hover { color: var(--text); border-color: #33405c; }
+  .refresh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .refresh.spin svg { animation: spin .8s linear; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- hero total ---- */
+  .hero { margin-bottom: 44px; }
+  .hero-label {
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: .02em;
+    margin-bottom: 10px;
+  }
+  .total {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    font-size: clamp(40px, 11vw, 66px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+  }
+  .total .cur { color: var(--faint); font-size: .5em; transform: translateY(-0.35em); }
+  .rule {
+    height: 2px;
+    width: 100%;
+    margin-top: 18px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--teal) 85%, transparent);
+    opacity: .8;
+  }
+  .rule.neg { background: linear-gradient(90deg, var(--neg), #b13b5a 80%, transparent); }
+  .change {
+    margin-top: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 6px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .change.pos { color: var(--pos); border-color: rgba(47,224,166,.28); background: rgba(47,224,166,.06); }
+  .change.neg { color: var(--neg); border-color: rgba(255,107,107,.28); background: rgba(255,107,107,.06); }
+  .change small { color: var(--faint); font-family: var(--body); }
+
+  /* ---- section head ---- */
+  .sec {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 0 6px;
+    padding: 0 4px;
+  }
+  .sec h2 {
+    font-family: var(--disp);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+  .sec .count { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+
+  /* ---- token list ---- */
+  .list {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 40px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 15px 18px;
+    border-top: 1px solid rgba(35,43,61,.7);
+  }
+  .row:first-child { border-top: none; }
+  .logo {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    object-fit: cover;
+    display: grid; place-items: center;
+    font-family: var(--disp); font-weight: 600; font-size: 14px; color: var(--muted);
+    overflow: hidden;
+  }
+  .name { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .name .sym {
+    font-family: var(--disp); font-weight: 600; font-size: 15px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .name .amt {
+    font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .val { text-align: right; display: flex; flex-direction: column; gap: 3px; }
+  .val .usd {
+    font-family: var(--mono); font-weight: 500; font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  .val .chg { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .chg.pos { color: var(--pos); }
+  .chg.neg { color: var(--neg); }
+  .chg.flat { color: var(--faint); }
+
+  /* ---- states ---- */
+  .skeleton .row { border-top: 1px solid rgba(35,43,61,.7); }
+  .sk {
+    background: linear-gradient(90deg, #1a2030 25%, #222a3d 37%, #1a2030 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius: 6px;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+  .sk.circle { border-radius: 50%; }
+
+  .msg {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .msg b { color: var(--text); font-weight: 600; }
+  .msg code {
+    font-family: var(--mono); font-size: 12.5px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 5px; color: var(--accent);
+  }
+
+  .foot {
+    margin-top: 26px;
+    text-align: center;
+    color: var(--faint);
+    font-size: 11.5px;
+    font-family: var(--mono);
+    letter-spacing: .03em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dot, .sk, .refresh.spin svg { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="eyebrow">Solana&nbsp;Portföy</div>
+      <div class="meta">
+        <span class="live"><span class="dot"></span><span id="updated">bağlanıyor</span></span>
+        <button class="refresh" id="refresh" aria-label="Yenile" title="Yenile">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+            <path d="M21 3v6h-6" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="hero-label">Toplam varlık değeri</div>
+      <div class="total" id="total"><span class="cur">$</span><span id="total-num">—</span></div>
+      <div class="rule" id="rule"></div>
+      <div id="change-wrap"></div>
+    </div>
+
+    <div class="sec">
+      <h2>Varlıklar</h2>
+      <span class="count" id="count"></span>
+    </div>
+    <div id="content"></div>
+
+    <div class="foot" id="foot">Fiyatlar: Jupiter · Zincir verisi: Helius</div>
+  </div>
+
+<script>
+const fmtUSD = (n) => {
+  if (n == null || !isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  const dp = abs >= 1 ? 2 : abs >= 0.01 ? 4 : 6;
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: dp });
+};
+const fmtPrice = (n) => {
+  if (!n || !isFinite(n)) return "—";
+  if (n >= 1) return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (n >= 0.0001) return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 6 });
+  return "$" + n.toExponential(2);
+};
+const fmtAmt = (n) => {
+  if (n == null || !isFinite(n)) return "—";
+  if (n >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (n >= 1) return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  return n.toLocaleString("en-US", { maximumFractionDigits: 6 });
+};
+const fmtChg = (c) => (c == null ? "—" : (c >= 0 ? "+" : "") + c.toFixed(2) + "%");
+const initials = (s) => (s || "?").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "?";
+
+function skeleton() {
+  let rows = "";
+  for (let i = 0; i < 5; i++) {
+    rows += `<div class="row">
+      <div class="sk circle" style="width:40px;height:40px"></div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div class="sk" style="width:82px;height:13px"></div>
+        <div class="sk" style="width:120px;height:11px"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px;align-items:flex-end">
+        <div class="sk" style="width:70px;height:13px"></div>
+        <div class="sk" style="width:44px;height:11px"></div>
+      </div>
+    </div>`;
+  }
+  return `<div class="list skeleton">${rows}</div>`;
+}
+
+function changeChip(c) {
+  if (c == null) return "";
+  const cls = c > 0 ? "pos" : c < 0 ? "neg" : "";
+  const arrow = c > 0 ? "▲" : c < 0 ? "▼" : "•";
+  return `<div class="change ${cls}">${arrow} ${fmtChg(c)} <small>24s</small></div>`;
+}
+
+function tokenRow(t) {
+  const logo = t.image
+    ? `<img class="logo" src="${t.image}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'logo',textContent:'${initials(t.symbol)}'}))" />`
+    : `<div class="logo">${initials(t.symbol)}</div>`;
+  const cls = t.change24h == null ? "flat" : t.change24h > 0 ? "pos" : t.change24h < 0 ? "neg" : "flat";
+  return `<div class="row">
+    ${logo}
+    <div class="name">
+      <span class="sym">${t.symbol || "?"}</span>
+      <span class="amt">${fmtAmt(t.amount)} · ${fmtPrice(t.price)}</span>
+    </div>
+    <div class="val">
+      <span class="usd">$${fmtUSD(t.value)}</span>
+      <span class="chg ${cls}">${fmtChg(t.change24h)}</span>
+    </div>
+  </div>`;
+}
+
+function timeAgo(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 5) return "az önce";
+  if (s < 60) return s + " sn önce";
+  const m = Math.round(s / 60);
+  return m + " dk önce";
+}
+
+let lastUpdated = 0;
+const $ = (id) => document.getElementById(id);
+
+function renderError(data) {
+  const setup = data && data.error === "config";
+  $("content").innerHTML = `<div class="msg">
+    ${setup
+      ? `<b>Kurulum gerekiyor.</b> Vercel projende <code>HELIUS_API_KEY</code> ortam değişkenini ekleyip yeniden dağıt (redeploy). Ücretsiz key: helius.dev`
+      : `<b>Veri alınamadı.</b> ${data && data.message ? data.message : "Bir hata oluştu."} Birazdan tekrar denenecek.`}
+  </div>`;
+  $("count").textContent = "";
+}
+
+async function load(isManual) {
+  try {
+    const res = await fetch("/api/portfolio", { cache: "no-store" });
+    const data = await res.json();
+
+    if (data.error) { renderError(data); return; }
+
+    $("total-num").textContent = fmtUSD(data.totalValue);
+
+    const c = data.change24h;
+    $("rule").className = "rule" + (c != null && c < 0 ? " neg" : "");
+    $("change-wrap").innerHTML = changeChip(c);
+
+    $("count").textContent = data.tokenCount + " coin";
+
+    if (!data.tokens || data.tokens.length === 0) {
+      $("content").innerHTML = `<div class="msg">Bu cüzdanlarda fiyatlanabilir varlık bulunamadı.</div>`;
+    } else {
+      $("content").innerHTML = `<div class="list">${data.tokens.map(tokenRow).join("")}</div>`;
+    }
+
+    lastUpdated = data.updatedAt || Date.now();
+    $("updated").textContent = timeAgo(lastUpdated);
+  } catch (e) {
+    renderError({ message: String(e.message || e) });
+  }
+}
+
+// ilk yükleme iskeleti
+$("content").innerHTML = skeleton();
+
+$("refresh").addEventListener("click", (e) => {
+  const btn = e.currentTarget;
+  btn.classList.remove("spin"); void btn.offsetWidth; btn.classList.add("spin");
+  load(true);
+});
+
+load();
+setInterval(load, 60000); // her 60 sn otomatik yenile
+setInterval(() => { if (lastUpdated) $("updated").textContent = timeAgo(lastUpdated); }, 15000);
+</script>
+</body>
+</html>
