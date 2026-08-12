@@ -6,7 +6,8 @@
 // İstersen Vercel'de WALLETS env değişkeni ile de geçebilirsin (virgülle ayır).
 const DEFAULT_WALLETS = [
   "ExMbkJpD8q2fYkYMe6bF8so4nJN3VpxKM52BT1McgWyn",
-  "FowSbC2UQ8vA1cA9BFGgyEgxo8brr97NeK7Di4EvKMou",
+     "FowSbC2UQ8vA1cA9BFGgyEgxo8brr97NeK7Di4EvKMou",
+     "CGty1jEPu9TkRypFSUEasSskMNgQeHRsBwdzk9SVJ5Sa",
 ];
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
