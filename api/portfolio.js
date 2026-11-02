@@ -10,6 +10,7 @@ const DEFAULT_WALLETS = [
      "CGty1jEPu9TkRypFSUEasSskMNgQeHRsBwdzk9SVJ5Sa",
   "GawuNosE3V3TPcvwAS8WHu48wQE3gnicEQD9oWhD5q85",
   "5EgKagCGmJoqF1XE9BQgbcaGE94MubytK8CAPvv6ak3t",
+   "98UF8K9KETcAwY9iob4XUMGc4UwV8K8pT6EQbsVeuKmr",
 
 ];
 
