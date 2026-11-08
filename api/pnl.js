@@ -217,6 +217,7 @@ async function compute(apiKey, rpcUrl, wallets) {
   }
 
   const byMint = new Map();
+  const trades = []; // tek tek alım/satımlar (işlem geçmişi için)
   let skipped = 0;
   let unpriced = 0;
   const seen = new Set(); // aynı cüzdan+işlem iki kez sayılmasın
@@ -242,6 +243,8 @@ async function compute(apiKey, rpcUrl, wallets) {
         skipped += 1;
         continue;
       }
+
+      trades.push({ ts, mint: c.mint, side: c.kind, usd: c.usd, qty: c.qty });
 
       let t = byMint.get(c.mint);
       if (!t) {
@@ -277,6 +280,46 @@ async function compute(apiKey, rpcUrl, wallets) {
   const withBuys = [...byMint.values()].filter((t) => t.bought > 0);
   const noCost = byMint.size - withBuys.length;
 
+  // İşlem geçmişi: eskiden yeniye gez, her satışın kar/zararını
+  // ortalama maliyet yöntemiyle bul (aynı coin'in tüm alımları birleşik sayılır).
+  const buyMints = new Set(withBuys.map((t) => t.mint));
+  const ordered = trades
+    .filter((tr) => buyMints.has(tr.mint))
+    .sort((a, b) => a.ts - b.ts);
+  const pos = new Map(); // mint -> { qty, cost }
+  const history = [];
+  for (const tr of ordered) {
+    let ps = pos.get(tr.mint);
+    if (!ps) {
+      ps = { qty: 0, cost: 0 };
+      pos.set(tr.mint, ps);
+    }
+    if (tr.side === "buy") {
+      ps.qty += tr.qty;
+      ps.cost += tr.usd;
+      history.push({ ts: tr.ts, mint: tr.mint, side: "buy", usd: tr.usd, qty: tr.qty });
+    } else {
+      let pnl = null;
+      let basis = null;
+      if (ps.qty > 0) {
+        const used = Math.min(tr.qty, ps.qty);
+        basis = (ps.cost / ps.qty) * used;
+        // satılan adedin maliyeti; fazla satış (maliyeti bilinmeyen kısım) hesaba katılmaz
+        const proceeds = tr.usd * (used / tr.qty);
+        pnl = proceeds - basis;
+        ps.qty -= used;
+        ps.cost -= basis;
+        if (ps.qty < 1e-9) {
+          ps.qty = 0;
+          ps.cost = 0;
+        }
+      }
+      history.push({ ts: tr.ts, mint: tr.mint, side: "sell", usd: tr.usd, qty: tr.qty, pnl, basis });
+    }
+  }
+  history.sort((a, b) => b.ts - a.ts); // en yeni en üstte
+  const recentTrades = history.slice(0, 400);
+
   // En çok işlem hacmi olanlar için isim/logo çek
   withBuys.sort((a, b) => b.bought + b.sold - (a.bought + a.sold));
   const metaMints = withBuys.slice(0, MAX_META).map((t) => t.mint);
@@ -300,7 +343,16 @@ async function compute(apiKey, rpcUrl, wallets) {
     };
   });
 
-  return { tokens, txCount, skipped, unpriced, noCost, partial };
+  return {
+    tokens,
+    trades: recentTrades,
+    tradeTotal: history.length,
+    txCount,
+    skipped,
+    unpriced,
+    noCost,
+    partial,
+  };
 }
 
 module.exports = async (req, res) => {
