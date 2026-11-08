@@ -251,6 +251,11 @@
     font-variant-numeric: tabular-nums;
   }
   .val .chg { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .usd.pos { color: var(--pos); }
+  .usd.neg { color: var(--neg); }
+  .val .pl { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .pl.pos { color: var(--pos); }
+  .pl.neg { color: var(--neg); }
   .chg.pos { color: var(--pos); }
   .chg.neg { color: var(--neg); }
   .chg.flat { color: var(--faint); }
@@ -320,7 +325,7 @@
 
     <div class="stats" id="stats">
       <div class="stat">
-        <div class="lbl">Toplam yatırılan</div>
+        <div class="lbl">Toplam alım tutarı</div>
         <div class="num dim" id="invested">—</div>
       </div>
       <div class="stat">
@@ -336,6 +341,12 @@
       <span class="count" id="count"></span>
     </div>
     <div id="content"></div>
+
+    <div class="sec" id="closed-head" style="margin-top:40px;display:none">
+      <h2>Kapanan işlemler</h2>
+      <span class="count" id="closed-count"></span>
+    </div>
+    <div id="closed"></div>
 
     <div class="foot" id="foot">Fiyatlar: Jupiter · Zincir verisi: Helius</div>
   </div>
@@ -387,20 +398,65 @@ function changeChip(c) {
   return `<div class="change ${cls}">${arrow} ${fmtChg(c)} <small>24s</small></div>`;
 }
 
+const esc = (str) => String(str == null ? "" : str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtSigned = (n) => (n >= 0 ? "+$" : "-$") + fmtUSD(Math.abs(n));
+
+function logoHtml(image, symbol) {
+  const ini = esc(initials(symbol));
+  if (image && /^https?:\/\//i.test(image)) {
+    return `<img class="logo" src="${esc(image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'logo',textContent:'${ini}'}))" />`;
+  }
+  return `<div class="logo">${ini}</div>`;
+}
+
+// ---- veri durumu ----
+let pf = null;                       // /api/portfolio cevabı
+let pn = null;                       // /api/pnl cevabı
+let pnState = "loading";             // loading | ok | error
+let pnMap = new Map();               // mint -> alım/satım toplamları
+let heldMap = new Map();             // mint -> elde tutulan değer (USD)
+
+// Bir coin için kar/zarar: satış geliri + güncel değer - alım maliyeti
+function pnlFor(mint, heldValue) {
+  const p = pnMap.get(mint);
+  if (!p || !(p.bought > 0)) return null;
+  const pnl = p.sold + heldValue - p.bought;
+  const soldShare = p.qtyBought > 0 ? Math.min(1, p.qtySold / p.qtyBought) : 0;
+  const realized = p.sold - p.bought * soldShare;
+  return { pnl, realized, pct: (pnl / p.bought) * 100, bought: p.bought, sold: p.sold };
+}
+
 function tokenRow(t) {
-  const logo = t.image
-    ? `<img class="logo" src="${t.image}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'logo',textContent:'${initials(t.symbol)}'}))" />`
-    : `<div class="logo">${initials(t.symbol)}</div>`;
   const cls = t.change24h == null ? "flat" : t.change24h > 0 ? "pos" : t.change24h < 0 ? "neg" : "flat";
+  const p = pnlFor(t.mint, t.value);
+  const pl = p
+    ? `<span class="pl ${p.pnl >= 0 ? "pos" : "neg"}">K/Z ${fmtSigned(p.pnl)} (${fmtChg(p.pct)})</span>`
+    : "";
   return `<div class="row">
-    ${logo}
+    ${logoHtml(t.image, t.symbol)}
     <div class="name">
-      <span class="sym">${t.symbol || "?"}</span>
+      <span class="sym">${esc(t.symbol || "?")}</span>
       <span class="amt">${fmtAmt(t.amount)} · ${fmtPrice(t.price)}</span>
     </div>
     <div class="val">
       <span class="usd">$${fmtUSD(t.value)}</span>
       <span class="chg ${cls}">${fmtChg(t.change24h)}</span>
+      ${pl}
+    </div>
+  </div>`;
+}
+
+function closedRow(t, p) {
+  const c = p.pnl >= 0 ? "pos" : "neg";
+  return `<div class="row">
+    ${logoHtml(t.image, t.symbol)}
+    <div class="name">
+      <span class="sym">${esc(t.symbol || "?")}</span>
+      <span class="amt">Alım $${fmtUSD(t.bought)} · Satış $${fmtUSD(t.sold)}</span>
+    </div>
+    <div class="val">
+      <span class="usd ${c}">${fmtSigned(p.pnl)}</span>
+      <span class="chg ${c}">${fmtChg(p.pct)}</span>
     </div>
   </div>`;
 }
@@ -421,9 +477,88 @@ function renderError(data) {
   $("content").innerHTML = `<div class="msg">
     ${setup
       ? `<b>Kurulum gerekiyor.</b> Vercel projende <code>HELIUS_API_KEY</code> ortam değişkenini ekleyip yeniden dağıt (redeploy). Ücretsiz key: helius.dev`
-      : `<b>Veri alınamadı.</b> ${data && data.message ? data.message : "Bir hata oluştu."} Birazdan tekrar denenecek.`}
+      : `<b>Veri alınamadı.</b> ${esc(data && data.message ? data.message : "Bir hata oluştu.")} Birazdan tekrar denenecek.`}
   </div>`;
   $("count").textContent = "";
+}
+
+// ---- Toplamlar ----
+function computeTotals() {
+  if (!pn || !pf) return null;
+  let bought = 0, pnl = 0, realized = 0;
+  for (const t of pn.tokens) {
+    const p = pnlFor(t.mint, heldMap.get(t.mint) || 0);
+    if (!p) continue;
+    bought += p.bought;
+    pnl += p.pnl;
+    realized += p.realized;
+  }
+  return { bought, pnl, realized, unreal: pnl - realized, n: pn.tokens.length };
+}
+
+function renderStats() {
+  const invEl = $("invested"), pnlEl = $("pnl"), pctEl = $("pnl-pct"), note = $("statnote");
+  const dim = (el, txt) => { el.className = "num dim"; el.textContent = txt; };
+
+  if (pnState === "loading") {
+    dim(invEl, "Hesaplanıyor…"); dim(pnlEl, "Hesaplanıyor…");
+    pctEl.className = "sub"; pctEl.textContent = "";
+    note.textContent = "İlk hesaplama birkaç on saniye sürebilir, sonra hızlı açılır.";
+    return;
+  }
+  if (pnState === "error") {
+    dim(invEl, "—"); dim(pnlEl, "—");
+    pctEl.className = "sub"; pctEl.textContent = "";
+    note.textContent = "Kar/zarar şu an hesaplanamadı, tekrar denenecek.";
+    return;
+  }
+
+  const tt = computeTotals();
+  if (!tt) { dim(invEl, "—"); dim(pnlEl, "—"); pctEl.textContent = ""; note.textContent = ""; return; }
+
+  invEl.className = "num"; invEl.textContent = "$" + fmtUSD(tt.bought);
+  const up = tt.pnl >= 0;
+  pnlEl.className = "num " + (up ? "pos" : "neg");
+  pnlEl.textContent = fmtSigned(tt.pnl);
+  if (tt.bought > 0) {
+    pctEl.className = "sub " + (up ? "pos" : "neg");
+    pctEl.textContent = (up ? "▲ " : "▼ ") + fmtChg((tt.pnl / tt.bought) * 100);
+  } else { pctEl.className = "sub"; pctEl.textContent = ""; }
+
+  let t = "Gerçekleşen " + fmtSigned(tt.realized) + " · Açık pozisyon " + fmtSigned(tt.unreal) + " · " + tt.n + " coin";
+  if (pn.partial) t += " · Geçmiş kısmen tarandı";
+  note.textContent = t;
+}
+
+function renderClosed() {
+  const head = $("closed-head"), box = $("closed");
+  if (pnState !== "ok" || !pn || !pf) { head.style.display = "none"; box.innerHTML = ""; return; }
+
+  const rows = [];
+  for (const t of pn.tokens) {
+    if ((heldMap.get(t.mint) || 0) >= 0.01) continue; // hâlâ elde: üstte listelenir
+    const p = pnlFor(t.mint, 0);
+    if (p) rows.push({ t, p });
+  }
+  if (rows.length === 0) { head.style.display = "none"; box.innerHTML = ""; return; }
+
+  rows.sort((x, y) => Math.abs(y.p.pnl) - Math.abs(x.p.pnl));
+  const shown = rows.slice(0, 30);
+  head.style.display = "flex";
+  $("closed-count").textContent = rows.length + " coin";
+  box.innerHTML = `<div class="list">${shown.map((r) => closedRow(r.t, r.p)).join("")}</div>` +
+    (rows.length > shown.length ? `<div class="statnote" style="margin:10px 4px 0">… ve ${rows.length - shown.length} coin daha (en büyük 30 gösteriliyor)</div>` : "");
+}
+
+function renderAll() {
+  if (!pf) return;
+  if (!pf.tokens || pf.tokens.length === 0) {
+    $("content").innerHTML = `<div class="msg">Bu cüzdanlarda fiyatlanabilir varlık bulunamadı.</div>`;
+  } else {
+    $("content").innerHTML = `<div class="list">${pf.tokens.map(tokenRow).join("")}</div>`;
+  }
+  renderClosed();
+  renderStats();
 }
 
 async function load(isManual) {
@@ -438,17 +573,11 @@ async function load(isManual) {
     const c = data.change24h;
     $("rule").className = "rule" + (c != null && c < 0 ? " neg" : "");
     $("change-wrap").innerHTML = changeChip(c);
-
-    totalNow = data.totalValue;
-    renderStats();
-
     $("count").textContent = data.tokenCount + " coin";
 
-    if (!data.tokens || data.tokens.length === 0) {
-      $("content").innerHTML = `<div class="msg">Bu cüzdanlarda fiyatlanabilir varlık bulunamadı.</div>`;
-    } else {
-      $("content").innerHTML = `<div class="list">${data.tokens.map(tokenRow).join("")}</div>`;
-    }
+    pf = data;
+    heldMap = new Map((data.tokens || []).map((t) => [t.mint, t.value]));
+    renderAll();
 
     lastUpdated = data.updatedAt || Date.now();
     $("updated").textContent = timeAgo(lastUpdated);
@@ -457,66 +586,21 @@ async function load(isManual) {
   }
 }
 
-let totalNow = null;
-let inv = { state: "loading" }; // loading | ok | error
-
-function renderStats() {
-  const invEl = $("invested"), pnlEl = $("pnl"), pctEl = $("pnl-pct"), note = $("statnote");
-
-  if (inv.state === "loading") {
-    invEl.className = "num dim"; invEl.textContent = "Hesaplanıyor…";
-    pnlEl.className = "num dim"; pnlEl.textContent = "Hesaplanıyor…";
-    pctEl.className = "sub"; pctEl.textContent = "";
-    note.textContent = "İlk hesaplama birkaç saniye sürebilir.";
-    return;
-  }
-  if (inv.state === "error") {
-    invEl.className = "num dim"; invEl.textContent = "—";
-    pnlEl.className = "num dim"; pnlEl.textContent = "—";
-    pctEl.className = "sub"; pctEl.textContent = "";
-    note.textContent = "Yatırılan tutar şu an hesaplanamadı, tekrar denenecek.";
-    return;
-  }
-
-  const d = inv.data;
-  invEl.className = "num";
-  invEl.textContent = (d.invested < 0 ? "-$" : "$") + fmtUSD(Math.abs(d.invested));
-
-  if (totalNow == null) {
-    pnlEl.className = "num dim"; pnlEl.textContent = "—"; pctEl.textContent = "";
-  } else {
-    const pnl = totalNow - d.invested;
-    const up = pnl >= 0;
-    pnlEl.className = "num " + (up ? "pos" : "neg");
-    pnlEl.textContent = (up ? "+$" : "-$") + fmtUSD(Math.abs(pnl));
-    if (d.invested > 0) {
-      const pct = (pnl / d.invested) * 100;
-      pctEl.className = "sub " + (up ? "pos" : "neg");
-      pctEl.textContent = (up ? "▲ " : "▼ ") + fmtChg(pct);
-    } else {
-      pctEl.className = "sub"; pctEl.textContent = "";
+async function loadPnl() {
+  try {
+    const res = await fetch("/api/pnl");
+    const data = await res.json();
+    if (data.error || !Array.isArray(data.tokens)) throw new Error(data.message || "hata");
+    pn = data;
+    pnMap = new Map(data.tokens.map((t) => [t.mint, t]));
+    pnState = "ok";
+  } catch (e) {
+    if (pnState !== "ok") {
+      pnState = "error";
+      setTimeout(loadPnl, 60000); // hata olursa 1 dk sonra tekrar dene
     }
   }
-
-  let t = "";
-  if (d.source === "auto") {
-    t = "Giren $" + fmtUSD(d.deposited) + " · Çıkan $" + fmtUSD(d.withdrawn) + " (SOL ve stablecoin transferleri)";
-    if (d.partial) t += " · Geçmiş kısmen tarandı";
-  } else if (d.source === "manual") {
-    t = "Yatırılan tutar elle girildi.";
-  }
-  note.textContent = t;
-}
-
-async function loadInvested() {
-  try {
-    const res = await fetch("/api/invested");
-    const data = await res.json();
-    if (data.error || data.invested == null) throw new Error(data.message || "hata");
-    inv = { state: "ok", data };
-  } catch (e) {
-    if (inv.state !== "ok") inv = { state: "error" };
-  }
+  renderAll();
   renderStats();
 }
 
@@ -530,8 +614,8 @@ $("refresh").addEventListener("click", (e) => {
 });
 
 renderStats();
-loadInvested();
-setInterval(loadInvested, 30 * 60 * 1000);
+loadPnl();
+setInterval(loadPnl, 30 * 60 * 1000);
 load();
 setInterval(load, 60000); // her 60 sn otomatik yenile
 setInterval(() => { if (lastUpdated) $("updated").textContent = timeAgo(lastUpdated); }, 15000);
