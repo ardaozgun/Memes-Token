@@ -145,6 +145,53 @@
   .change.neg { color: var(--neg); border-color: rgba(255,107,107,.28); background: rgba(255,107,107,.06); }
   .change small { color: var(--faint); font-family: var(--body); }
 
+  /* ---- all-time stats ---- */
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 0 0 44px;
+  }
+  .stat {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    min-width: 0;
+  }
+  .stat .lbl {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: .02em;
+    margin-bottom: 8px;
+  }
+  .stat .num {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: clamp(18px, 5vw, 24px);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .stat .sub {
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--faint);
+  }
+  .stat .num.pos, .stat .sub.pos { color: var(--pos); }
+  .stat .num.neg, .stat .sub.neg { color: var(--neg); }
+  .stat .num.dim { color: var(--faint); }
+  .statnote {
+    margin: -32px 4px 40px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--faint);
+    line-height: 1.6;
+  }
+
   /* ---- section head ---- */
   .sec {
     display: flex;
@@ -271,6 +318,19 @@
       <div id="change-wrap"></div>
     </div>
 
+    <div class="stats" id="stats">
+      <div class="stat">
+        <div class="lbl">Toplam yatırılan</div>
+        <div class="num dim" id="invested">—</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Tüm zamanların kar/zararı</div>
+        <div class="num dim" id="pnl">—</div>
+        <div class="sub" id="pnl-pct"></div>
+      </div>
+    </div>
+    <div class="statnote" id="statnote"></div>
+
     <div class="sec">
       <h2>Varlıklar</h2>
       <span class="count" id="count"></span>
@@ -379,6 +439,9 @@ async function load(isManual) {
     $("rule").className = "rule" + (c != null && c < 0 ? " neg" : "");
     $("change-wrap").innerHTML = changeChip(c);
 
+    totalNow = data.totalValue;
+    renderStats();
+
     $("count").textContent = data.tokenCount + " coin";
 
     if (!data.tokens || data.tokens.length === 0) {
@@ -394,6 +457,69 @@ async function load(isManual) {
   }
 }
 
+let totalNow = null;
+let inv = { state: "loading" }; // loading | ok | error
+
+function renderStats() {
+  const invEl = $("invested"), pnlEl = $("pnl"), pctEl = $("pnl-pct"), note = $("statnote");
+
+  if (inv.state === "loading") {
+    invEl.className = "num dim"; invEl.textContent = "Hesaplanıyor…";
+    pnlEl.className = "num dim"; pnlEl.textContent = "Hesaplanıyor…";
+    pctEl.className = "sub"; pctEl.textContent = "";
+    note.textContent = "İlk hesaplama birkaç saniye sürebilir.";
+    return;
+  }
+  if (inv.state === "error") {
+    invEl.className = "num dim"; invEl.textContent = "—";
+    pnlEl.className = "num dim"; pnlEl.textContent = "—";
+    pctEl.className = "sub"; pctEl.textContent = "";
+    note.textContent = "Yatırılan tutar şu an hesaplanamadı, tekrar denenecek.";
+    return;
+  }
+
+  const d = inv.data;
+  invEl.className = "num";
+  invEl.textContent = (d.invested < 0 ? "-$" : "$") + fmtUSD(Math.abs(d.invested));
+
+  if (totalNow == null) {
+    pnlEl.className = "num dim"; pnlEl.textContent = "—"; pctEl.textContent = "";
+  } else {
+    const pnl = totalNow - d.invested;
+    const up = pnl >= 0;
+    pnlEl.className = "num " + (up ? "pos" : "neg");
+    pnlEl.textContent = (up ? "+$" : "-$") + fmtUSD(Math.abs(pnl));
+    if (d.invested > 0) {
+      const pct = (pnl / d.invested) * 100;
+      pctEl.className = "sub " + (up ? "pos" : "neg");
+      pctEl.textContent = (up ? "▲ " : "▼ ") + fmtChg(pct);
+    } else {
+      pctEl.className = "sub"; pctEl.textContent = "";
+    }
+  }
+
+  let t = "";
+  if (d.source === "auto") {
+    t = "Giren $" + fmtUSD(d.deposited) + " · Çıkan $" + fmtUSD(d.withdrawn) + " (SOL ve stablecoin transferleri)";
+    if (d.partial) t += " · Geçmiş kısmen tarandı";
+  } else if (d.source === "manual") {
+    t = "Yatırılan tutar elle girildi.";
+  }
+  note.textContent = t;
+}
+
+async function loadInvested() {
+  try {
+    const res = await fetch("/api/invested");
+    const data = await res.json();
+    if (data.error || data.invested == null) throw new Error(data.message || "hata");
+    inv = { state: "ok", data };
+  } catch (e) {
+    if (inv.state !== "ok") inv = { state: "error" };
+  }
+  renderStats();
+}
+
 // ilk yükleme iskeleti
 $("content").innerHTML = skeleton();
 
@@ -403,6 +529,9 @@ $("refresh").addEventListener("click", (e) => {
   load(true);
 });
 
+renderStats();
+loadInvested();
+setInterval(loadInvested, 30 * 60 * 1000);
 load();
 setInterval(load, 60000); // her 60 sn otomatik yenile
 setInterval(() => { if (lastUpdated) $("updated").textContent = timeAgo(lastUpdated); }, 15000);
