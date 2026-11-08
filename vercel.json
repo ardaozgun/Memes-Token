@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/invested.js": {
+    "api/pnl.js": {
       "maxDuration": 60
     }
   }
