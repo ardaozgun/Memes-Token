@@ -213,6 +213,7 @@ module.exports = async (req, res) => {
       }
 
       tokens.push({
+        mint: t.mint,
         symbol: t.symbol || t.mint.slice(0, 4),
         name: t.name || t.symbol || "Bilinmeyen",
         image: t.image,
