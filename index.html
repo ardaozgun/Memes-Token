@@ -251,6 +251,46 @@
     font-variant-numeric: tabular-nums;
   }
   .val .chg { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .dayhead {
+    padding: 10px 18px 8px;
+    font-family: var(--disp);
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--faint);
+    background: rgba(255,255,255,0.02);
+    border-top: 1px solid rgba(35,43,61,.7);
+  }
+  .dayhead:first-child { border-top: none; }
+  .tag {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    vertical-align: 1px;
+  }
+  .tag.buy { color: var(--teal); background: rgba(47,224,166,.10); }
+  .tag.sell { color: #ffb86b; background: rgba(255,184,107,.11); }
+  .morebtn {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .morebtn:hover { color: var(--text); border-color: #33405c; }
+  .morebtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .usd.pos { color: var(--pos); }
   .usd.neg { color: var(--neg); }
   .val .pl { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
@@ -342,6 +382,12 @@
     </div>
     <div id="content"></div>
 
+    <div class="sec" id="act-head" style="margin-top:40px;display:none">
+      <h2>İşlem geçmişi</h2>
+      <span class="count" id="act-count"></span>
+    </div>
+    <div id="act"></div>
+
     <div class="sec" id="closed-head" style="margin-top:40px;display:none">
       <h2>Kapanan işlemler</h2>
       <span class="count" id="closed-count"></span>
@@ -415,6 +461,8 @@ let pn = null;                       // /api/pnl cevabı
 let pnState = "loading";             // loading | ok | error
 let pnMap = new Map();               // mint -> alım/satım toplamları
 let heldMap = new Map();             // mint -> elde tutulan değer (USD)
+let priceNow = new Map();            // mint -> güncel fiyat (USD)
+let actShown = 40;                   // işlem geçmişinde görünen satır sayısı
 
 // Bir coin için kar/zarar: satış geliri + güncel değer - alım maliyeti
 function pnlFor(mint, heldValue) {
@@ -550,6 +598,73 @@ function renderClosed() {
     (rows.length > shown.length ? `<div class="statnote" style="margin:10px 4px 0">… ve ${rows.length - shown.length} coin daha (en büyük 30 gösteriliyor)</div>` : "");
 }
 
+// ---- İşlem geçmişi (en yeni üstte) ----
+function dayLabel(ts) {
+  const d = new Date(ts * 1000), now = new Date();
+  const day0 = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day0(now) - day0(d)) / 86400000);
+  if (diff === 0) return "Bugün";
+  if (diff === 1) return "Dün";
+  return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
+}
+const fmtClock = (ts) => new Date(ts * 1000).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+
+function tradeRow(tr) {
+  const t = pnMap.get(tr.mint) || { symbol: tr.mint.slice(0, 4), image: null };
+  const isBuy = tr.side === "buy";
+  let pl = "";
+  if (isBuy) {
+    const price = priceNow.get(tr.mint);
+    if (price > 0 && tr.usd > 0) {
+      const d = tr.qty * price - tr.usd;
+      pl = `<span class="pl ${d >= 0 ? "pos" : "neg"}">Şimdi ${fmtSigned(d)} (${fmtChg((d / tr.usd) * 100)})</span>`;
+    }
+  } else if (tr.pnl != null) {
+    const pct = tr.basis > 0 ? (tr.pnl / tr.basis) * 100 : null;
+    pl = `<span class="pl ${tr.pnl >= 0 ? "pos" : "neg"}">K/Z ${fmtSigned(tr.pnl)}${pct != null ? " (" + fmtChg(pct) + ")" : ""}</span>`;
+  } else {
+    pl = `<span class="pl" style="color:var(--faint)">K/Z —</span>`;
+  }
+  return `<div class="row">
+    ${logoHtml(t.image, t.symbol)}
+    <div class="name">
+      <span class="sym">${esc(t.symbol || "?")}<span class="tag ${isBuy ? "buy" : "sell"}">${isBuy ? "ALIM" : "SATIŞ"}</span></span>
+      <span class="amt">${fmtClock(tr.ts)} · ${fmtAmt(tr.qty)} adet</span>
+    </div>
+    <div class="val">
+      <span class="usd">$${fmtUSD(tr.usd)}</span>
+      ${pl}
+    </div>
+  </div>`;
+}
+
+function moreTrades() { actShown += 40; renderActivity(); }
+
+function renderActivity() {
+  const head = $("act-head"), box = $("act");
+  if (pnState === "loading") {
+    head.style.display = "flex"; $("act-count").textContent = "";
+    box.innerHTML = `<div class="msg">İşlem geçmişi yükleniyor…</div>`;
+    return;
+  }
+  if (pnState !== "ok" || !pn || !pn.trades || pn.trades.length === 0) {
+    head.style.display = "none"; box.innerHTML = ""; return;
+  }
+
+  const all = pn.trades;
+  const shown = all.slice(0, actShown);
+  let html = "", lastDay = null;
+  for (const tr of shown) {
+    const lbl = dayLabel(tr.ts);
+    if (lbl !== lastDay) { html += `<div class="dayhead">${esc(lbl)}</div>`; lastDay = lbl; }
+    html += tradeRow(tr);
+  }
+  head.style.display = "flex";
+  $("act-count").textContent = (pn.tradeTotal || all.length) + " işlem";
+  box.innerHTML = `<div class="list">${html}</div>` +
+    (shown.length < all.length ? `<button class="morebtn" onclick="moreTrades()">Daha eski işlemleri göster (${all.length - shown.length} kaldı)</button>` : "");
+}
+
 function renderAll() {
   if (!pf) return;
   if (!pf.tokens || pf.tokens.length === 0) {
@@ -557,6 +672,7 @@ function renderAll() {
   } else {
     $("content").innerHTML = `<div class="list">${pf.tokens.map(tokenRow).join("")}</div>`;
   }
+  renderActivity();
   renderClosed();
   renderStats();
 }
@@ -577,6 +693,7 @@ async function load(isManual) {
 
     pf = data;
     heldMap = new Map((data.tokens || []).map((t) => [t.mint, t.value]));
+    priceNow = new Map((data.tokens || []).map((t) => [t.mint, t.price]));
     renderAll();
 
     lastUpdated = data.updatedAt || Date.now();
