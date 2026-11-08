@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/invested.js": {
+      "maxDuration": 60
+    }
+  }
+}
