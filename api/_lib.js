@@ -10,6 +10,17 @@ const DEFAULT_WALLETS = [
   "GawuNosE3V3TPcvwAS8WHu48wQE3gnicEQD9oWhD5q85",
   "5EgKagCGmJoqF1XE9BQgbcaGE94MubytK8CAPvv6ak3t",
   "98UF8K9KETcAwY9iob4XUMGc4UwV8K8pT6EQbsVeuKmr",
+  "ERKbozKdb5aykmXLZwPMRoujpMsgGFzVGh4r9uNbRAF",
+  "57QdCF75g65PU2E5Zdq4TabcPozUEgirMovCGDW41xCU",
+  "BKx5QpNjiSFUNHM2hBcFvaerCawytznrG8tTvcn45MYy",
+  "9LFEiTVrtqNohLH6AfYTeFFWNdJZiHAcFYhQ5EErPc66",
+  "Fnje5D1fqo6oinRj8vH6WC81igj53cRjVAstBNdLjzCL",
+  "DMxV2jomcFRWyZQibcM3aSu8xPygRJSDFKygtiyqBCxX",
+  "2c44qD3GEBQbssNyF1nveJHH8f8Ghp7AqawGMY5Ph632",
+  "2zV3LFqZegwQ3e9fSb28wC8U1EyqiQ5emDakoDB9CMQX",
+  "Cv2N2yvCTysQZhujS8xGtHsGkFQvys4mgLhF1Kva2bYG",
+  "4TDzGjh9YuFEYZxomW49BhVkAZ2m2y7W5se7qtKwccUY",
+  "5KuwpdHeH5Qxg972DdgnaFXypxSXn2tP4t7NSVttJSqT",
 ];
 
 function getWallets() {
